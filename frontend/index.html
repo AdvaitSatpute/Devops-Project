@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Real-Time Chat App</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="auth-container" class="container">
+    <div class="auth-box">
+      <h1>Chat App</h1>
+      <div class="auth-form">
+        <h2 id="auth-title">Login</h2>
+        
+        <input 
+          type="text" 
+          id="username-input" 
+          placeholder="Username" 
+          class="input-field"
+        >
+        <input 
+          type="password" 
+          id="password-input" 
+          placeholder="Password" 
+          class="input-field"
+        >
+        
+        <button id="auth-button" class="button">Login</button>
+        <button id="toggle-auth-button" class="button secondary">Create Account</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="chat-container" class="container" style="display: none;">
+    <div class="chat-wrapper">
+      <div class="chat-header">
+        <h1>Chat Room</h1>
+        <div class="header-buttons">
+          <button id="summary-button" class="button small">Summary</button>
+          <button id="logout-button" class="button small">Logout</button>
+        </div>
+      </div>
+
+      <div class="chat-controls">
+        <label class="checkbox-label">
+          <input type="checkbox" id="low-bandwidth-toggle">
+          Low Bandwidth Mode
+        </label>
+      </div>
+
+      <div id="messages-container" class="messages-container">
+        <!-- Messages will be added here -->
+      </div>
+
+      <div class="summary-box" id="summary-box" style="display: none;">
+        <p id="summary-text"></p>
+        <button id="close-summary-button" class="button small">Close</button>
+      </div>
+
+      <div class="input-area">
+        <input 
+          type="text" 
+          id="message-input" 
+          placeholder="Type a message..." 
+          class="input-field"
+        >
+        <input 
+          type="file" 
+          id="image-input" 
+          accept="image/*" 
+          style="display: none;"
+        >
+        <button id="image-button" class="button">📎 Image</button>
+        <button id="send-button" class="button primary">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

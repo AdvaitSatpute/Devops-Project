@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chat App</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Auth Container -->
+  <div id="auth-container" class="auth-page">
+    <div class="auth-box">
+      <h1>💬 Chat App</h1>
+      <div class="auth-form">
+        <h2 id="auth-title">Login</h2>
+        
+        <input 
+          type="text" 
+          id="username-input" 
+          placeholder="Username" 
+          class="input-field"
+        >
+        <input 
+          type="password" 
+          id="password-input" 
+          placeholder="Password" 
+          class="input-field"
+        >
+        
+        <button id="auth-button" class="button primary">Login</button>
+        <button id="toggle-auth-button" class="button secondary">Create Account</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chat Container (WhatsApp Style) -->
+  <div id="chat-container" class="chat-page" style="display: none;">
+    <div class="chat-layout">
+      <!-- Sidebar -->
+      <div class="sidebar">
+        <div class="sidebar-header">
+          <h2>Chats</h2>
+          <div class="header-icons">
+            <button id="new-chat-button" class="icon-button" title="New Chat">➕</button>
+            <button id="logout-button" class="icon-button" title="Logout">🚪</button>
+          </div>
+        </div>
+
+        <div class="search-box">
+          <input type="text" id="search-input" placeholder="Search conversations...">
+        </div>
+
+        <div id="conversations-list" class="conversations-list">
+          <!-- Conversations will be loaded here -->
+        </div>
+      </div>
+
+      <!-- Main Chat Area -->
+      <div class="chat-main">
+        <!-- Empty State -->
+        <div id="empty-state" class="empty-state">
+          <div class="empty-icon">💬</div>
+          <p>Select a conversation to start chatting</p>
+        </div>
+
+        <!-- Chat View -->
+        <div id="chat-view" class="chat-view" style="display: none;">
+          <!-- Chat Header -->
+          <div class="chat-header">
+            <div class="header-info">
+              <h3 id="chat-title">Loading...</h3>
+              <p id="chat-subtitle"></p>
+            </div>
+            <div class="header-controls">
+              <button id="summary-button" class="icon-button" title="Summary">📊</button>
+              <button id="info-button" class="icon-button" title="Info">ℹ️</button>
+            </div>
+          </div>
+
+          <!-- Messages Area -->
+          <div id="messages-area" class="messages-area">
+            <!-- Messages will be loaded here -->
+          </div>
+
+          <!-- Typing Indicator -->
+          <div id="typing-indicator" class="typing-indicator" style="display: none;">
+            <p id="typing-text"></p>
+          </div>
+
+          <!-- Input Area -->
+          <div class="chat-footer">
+            <input type="file" id="image-input" accept="image/*" style="display: none;">
+            <button id="image-button" class="input-button" title="Attach Image">📎</button>
+            
+            <input 
+              type="text" 
+              id="message-input" 
+              placeholder="Type a message..." 
+              class="message-input"
+            >
+            
+            <button id="send-button" class="input-button primary" title="Send">✈️</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Summary Modal -->
+      <div id="summary-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>Chat Summary</h3>
+            <button id="close-summary" class="close-button">&times;</button>
+          </div>
+          <div class="modal-body">
+            <p id="summary-text"></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- New Chat Modal -->
+      <div id="new-chat-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h3>New Chat</h3>
+            <button id="close-new-chat" class="close-button">&times;</button>
+          </div>
+          <div class="modal-body">
+            <div class="chat-type-selector">
+              <button id="direct-msg-btn" class="type-button active">💬 Direct Message</button>
+              <button id="group-chat-btn" class="type-button">👥 Group Chat</button>
+            </div>
+
+            <div id="user-list" class="user-list">
+              <!-- Users will be listed here -->
+            </div>
+
+            <div id="group-form" style="display: none;">
+              <input type="text" id="group-name" placeholder="Group name" class="input-field">
+              <div id="group-members" class="group-members">
+                <!-- Selected members shown here -->
+              </div>
+              <button id="create-group-btn" class="button primary">Create Group</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
