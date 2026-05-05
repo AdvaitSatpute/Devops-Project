@@ -16,7 +16,7 @@ PROJECT LOCATION:
 Files Created:                    18
 Total Project Size:               144 KB
 Directories Created:              6
-Lines of Code:                    2000+
+Lines of Code:                    3000+
 Documentation Files:              5
 Backend Files:                    8
 Frontend Files:                   3
