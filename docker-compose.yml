@@ -1,5 +1,4 @@
 version: '3.8'
-
 services:
   mongodb:
     image: mongo:5.0
@@ -18,7 +17,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
   backend:
     build:
       context: ./backend
@@ -35,10 +33,10 @@ services:
         condition: service_healthy
     volumes:
       - ./backend/uploads:/app/uploads
+      - ./backend/public:/app/public
     networks:
       - chatapp-network
     restart: unless-stopped
-
   sonarqube:
     image: sonarqube:community
     container_name: sonarqube
@@ -55,7 +53,6 @@ volumes:
   sonarqube_data:
   sonarqube_logs:
   sonarqube_extensions:
-
 networks:
   chatapp-network:
     driver: bridge

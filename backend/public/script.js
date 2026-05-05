@@ -45,9 +45,10 @@ const typingIndicator = document.getElementById('typing-indicator');
 const typingText = document.getElementById('typing-text');
 
 let isLoginMode = true;
-let chatMode = 'direct'; // direct or group
+let chatMode = 'direct';
 
-// Auth Toggle
+// ============ AUTH ============
+
 toggleAuthButton.addEventListener('click', () => {
   isLoginMode = !isLoginMode;
   authTitle.textContent = isLoginMode ? 'Login' : 'Register';
@@ -55,7 +56,6 @@ toggleAuthButton.addEventListener('click', () => {
   toggleAuthButton.textContent = isLoginMode ? 'Create Account' : 'Back to Login';
 });
 
-// Auth Button Click
 authButton.addEventListener('click', async () => {
   const username = usernameInput.value.trim();
   const password = passwordInput.value.trim();
@@ -80,21 +80,38 @@ authButton.addEventListener('click', async () => {
       return;
     }
 
-    currentUser = { username, userId: data.userId };
+    currentUser = { username, userId: String(data.userId) };
     showChat();
+
+    // Register with socket server so the backend knows we are online
     socket.emit('user_login', { username: currentUser.username, userId: currentUser.userId });
-    
-    await loadConversations();
-    await loadAllUsers();
+
+    // Load all data on login
+    await Promise.all([loadAllUsers(), loadConversations()]);
   } catch (error) {
     alert('Error: ' + error.message);
   }
 });
 
-// Load Conversations
+// ============ DATA LOADING ============
+
+// FIX: fetch ALL users from /users endpoint — not derived from conversations
+async function loadAllUsers() {
+  try {
+    const response = await fetch(`${API_BASE}/users`);
+    if (!response.ok) throw new Error('Failed to fetch users');
+    const users = await response.json();
+    // Exclude ourselves
+    allUsers = users.filter(u => String(u._id) !== currentUser.userId);
+  } catch (error) {
+    console.error('Error loading users:', error);
+  }
+}
+
 async function loadConversations() {
   try {
     const response = await fetch(`${API_BASE}/conversations?userId=${currentUser.userId}`);
+    if (!response.ok) throw new Error('Failed to fetch conversations');
     conversations = await response.json();
     renderConversations();
   } catch (error) {
@@ -102,44 +119,31 @@ async function loadConversations() {
   }
 }
 
-// Load All Users
-async function loadAllUsers() {
-  try {
-    const response = await fetch(`${API_BASE}/conversations?userId=${currentUser.userId}`);
-    const userConversations = await response.json();
-    const userIds = new Set();
-    
-    userConversations.forEach(conv => {
-      conv.members.forEach(member => {
-        if (member._id !== currentUser.userId) {
-          userIds.add(JSON.stringify(member));
-        }
-      });
-    });
+// ============ RENDER ============
 
-    allUsers = Array.from(userIds).map(u => JSON.parse(u));
-  } catch (error) {
-    console.error('Error loading users:', error);
-  }
-}
-
-// Render Conversations
 function renderConversations() {
   conversationsList.innerHTML = '';
+  if (conversations.length === 0) {
+    const empty = document.createElement('p');
+    empty.textContent = 'No conversations yet. Start one with ➕';
+    empty.style.cssText = 'padding:16px;color:#888;font-size:14px;text-align:center;';
+    conversationsList.appendChild(empty);
+    return;
+  }
+
   conversations.forEach(conv => {
+    const isActive = currentConversation && conv._id === currentConversation._id;
     const div = document.createElement('div');
-    div.className = `conversation-item ${conv._id === currentConversation?._id ? 'active' : ''}`;
-    
-    const membersInfo = conv.members.map(m => m.username).join(', ');
-    const displayName = conv.type === 'direct' 
-      ? conv.members.find(m => m._id !== currentUser.userId)?.username || 'Direct Message'
-      : conv.name;
+    div.className = `conversation-item${isActive ? ' active' : ''}`;
+    div.dataset.convId = conv._id;
+
+    const displayName = getConvDisplayName(conv);
 
     div.innerHTML = `
       <div class="conversation-avatar">${displayName.charAt(0).toUpperCase()}</div>
       <div class="conversation-info">
-        <div class="conversation-name">${displayName}</div>
-        <div class="conversation-preview">${conv.lastMessage || 'No messages'}</div>
+        <div class="conversation-name">${escapeHtml(displayName)}</div>
+        <div class="conversation-preview">${escapeHtml(conv.lastMessage || 'No messages yet')}</div>
       </div>
     `;
 
@@ -148,43 +152,43 @@ function renderConversations() {
   });
 }
 
-// Select Conversation
+function getConvDisplayName(conv) {
+  if (conv.type === 'direct') {
+    const other = conv.members.find(m => String(m._id) !== currentUser.userId);
+    return other ? other.username : 'Direct Message';
+  }
+  return conv.name || 'Group Chat';
+}
+
+// ============ CONVERSATION SELECTION ============
+
 async function selectConversation(conv) {
   currentConversation = conv;
-  
-  const convDiv = document.querySelector('.conversation-item.active');
-  if (convDiv) convDiv.classList.remove('active');
-  
-  const activeDiv = Array.from(conversationsList.children)
-    .find(el => el.textContent.includes(conv.name || ''));
-  if (activeDiv) activeDiv.classList.add('active');
+
+  // Update active state in sidebar
+  document.querySelectorAll('.conversation-item').forEach(el => {
+    el.classList.toggle('active', el.dataset.convId === conv._id);
+  });
 
   emptyState.style.display = 'none';
   chatView.style.display = 'flex';
 
-  // Update header
-  const displayName = conv.type === 'direct'
-    ? conv.members.find(m => m._id !== currentUser.userId)?.username || 'Direct Message'
-    : conv.name;
-  chatTitle.textContent = displayName;
-  chatSubtitle.textContent = `${conv.members.length} members`;
+  chatTitle.textContent = getConvDisplayName(conv);
+  chatSubtitle.textContent = `${conv.members.length} member${conv.members.length !== 1 ? 's' : ''}`;
 
-  // Join room
   socket.emit('join_conversation', {
     conversationId: conv._id,
     username: currentUser.username
   });
 
-  // Load messages
   await loadMessages(conv._id);
 }
 
-// Load Messages
 async function loadMessages(conversationId) {
   try {
     const response = await fetch(`${API_BASE}/conversations/${conversationId}/messages`);
     const messages = await response.json();
-    
+
     messagesArea.innerHTML = '';
     messages.forEach(msg => displayMessage(msg));
     messagesArea.scrollTop = messagesArea.scrollHeight;
@@ -193,15 +197,14 @@ async function loadMessages(conversationId) {
   }
 }
 
-// Display Message
 function displayMessage(msg) {
-  const isSent = msg.userId === currentUser.userId;
+  const isSent = String(msg.userId) === currentUser.userId;
   const msgDiv = document.createElement('div');
-  msgDiv.className = `message ${isSent ? 'sent' : 'received'} ${msg.isImportant ? 'important' : ''}`;
+  msgDiv.className = `message ${isSent ? 'sent' : 'received'}${msg.isImportant ? ' important' : ''}`;
 
   let content = `<div class="message-bubble">`;
   if (!isSent) {
-    content += `<strong>${msg.username}</strong><br>`;
+    content += `<strong>${escapeHtml(msg.username)}</strong><br>`;
   }
   content += escapeHtml(msg.text);
   if (msg.isImportant) {
@@ -219,7 +222,8 @@ function displayMessage(msg) {
   messagesArea.scrollTop = messagesArea.scrollHeight;
 }
 
-// Send Message
+// ============ SEND MESSAGE ============
+
 sendButton.addEventListener('click', sendMessage);
 messageInput.addEventListener('keypress', (e) => {
   if (e.key === 'Enter') sendMessage();
@@ -246,7 +250,8 @@ async function sendMessage() {
   imageButton.textContent = '📎';
 }
 
-// Image Upload
+// ============ IMAGE UPLOAD ============
+
 imageButton.addEventListener('click', () => imageInput.click());
 
 imageInput.addEventListener('change', async (e) => {
@@ -257,11 +262,7 @@ imageInput.addEventListener('change', async (e) => {
   formData.append('image', file);
 
   try {
-    const response = await fetch(`${API_BASE}/upload`, {
-      method: 'POST',
-      body: formData
-    });
-
+    const response = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
     const data = await response.json();
     if (data.imageUrl) {
       window.pendingImageUrl = data.imageUrl;
@@ -274,7 +275,8 @@ imageInput.addEventListener('change', async (e) => {
   imageInput.value = '';
 });
 
-// Summary
+// ============ SUMMARY ============
+
 summaryButton.addEventListener('click', async () => {
   if (!currentConversation) return;
   try {
@@ -291,7 +293,8 @@ closeSummaryBtn.addEventListener('click', () => {
   summaryModal.style.display = 'none';
 });
 
-// New Chat Modal
+// ============ NEW CHAT MODAL ============
+
 newChatButton.addEventListener('click', () => {
   chatMode = 'direct';
   selectedMembers = [];
@@ -315,25 +318,24 @@ groupChatBtn.addEventListener('click', () => {
   renderChatMode();
 });
 
+// FIX: Uses allUsers (from /users endpoint) — shows ALL registered users,
+// not just those from existing conversations
 function renderChatMode() {
   directMsgBtn.classList.toggle('active', chatMode === 'direct');
   groupChatBtn.classList.toggle('active', chatMode === 'group');
-  
+
   userList.innerHTML = '';
   groupForm.style.display = chatMode === 'group' ? 'block' : 'none';
 
-  const userIds = new Set();
-  conversations.forEach(conv => {
-    conv.members.forEach(member => {
-      if (member._id !== currentUser.userId) {
-        userIds.add(JSON.stringify(member));
-      }
-    });
-  });
+  if (allUsers.length === 0) {
+    const p = document.createElement('p');
+    p.textContent = 'No other registered users found.';
+    p.style.cssText = 'padding:12px;color:#888;font-size:14px;';
+    userList.appendChild(p);
+    return;
+  }
 
-  const users = Array.from(userIds).map(u => JSON.parse(u));
-
-  users.forEach(user => {
+  allUsers.forEach(user => {
     const div = document.createElement('div');
     div.className = 'user-item';
     if (selectedMembers.some(m => m._id === user._id)) {
@@ -341,31 +343,61 @@ function renderChatMode() {
     }
 
     div.textContent = user.username;
-    div.addEventListener('click', () => {
-      const idx = selectedMembers.findIndex(m => m._id === user._id);
-      if (idx === -1) {
-        selectedMembers.push(user);
-        div.classList.add('selected');
+
+    div.addEventListener('click', async () => {
+      if (chatMode === 'direct') {
+        // FIX: Immediately create/open conversation on click in direct mode
+        try {
+          const response = await fetch(`${API_BASE}/conversations`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'direct',
+              members: [user._id],
+              userId: currentUser.userId
+            })
+          });
+
+          if (!response.ok) {
+            const err = await response.json();
+            alert(err.error || 'Failed to start conversation');
+            return;
+          }
+
+          const conv = await response.json();
+          newChatModal.style.display = 'none';
+          await loadConversations();
+          await selectConversation(conv);
+        } catch (error) {
+          alert('Error starting conversation: ' + error.message);
+        }
       } else {
-        selectedMembers.splice(idx, 1);
-        div.classList.remove('selected');
+        // Group mode: toggle member selection
+        const idx = selectedMembers.findIndex(m => m._id === user._id);
+        if (idx === -1) {
+          selectedMembers.push(user);
+          div.classList.add('selected');
+        } else {
+          selectedMembers.splice(idx, 1);
+          div.classList.remove('selected');
+        }
+        updateGroupMemberTags();
       }
-      updateGroupMembers();
     });
 
     userList.appendChild(div);
   });
 }
 
-function updateGroupMembers() {
+function updateGroupMemberTags() {
   groupMembers.innerHTML = '';
   selectedMembers.forEach(member => {
     const tag = document.createElement('div');
     tag.className = 'member-tag';
-    tag.innerHTML = `${member.username} <span class="remove">×</span>`;
+    tag.innerHTML = `${escapeHtml(member.username)} <span class="remove">×</span>`;
     tag.querySelector('.remove').addEventListener('click', () => {
       selectedMembers = selectedMembers.filter(m => m._id !== member._id);
-      updateGroupMembers();
+      updateGroupMemberTags();
       renderChatMode();
     });
     groupMembers.appendChild(tag);
@@ -379,7 +411,7 @@ createGroupBtn.addEventListener('click', async () => {
   }
 
   const name = groupName.value.trim() || 'New Group';
-  
+
   try {
     const response = await fetch(`${API_BASE}/conversations`, {
       method: 'POST',
@@ -392,9 +424,17 @@ createGroupBtn.addEventListener('click', async () => {
       })
     });
 
+    if (!response.ok) {
+      const err = await response.json();
+      alert(err.error || 'Failed to create group');
+      return;
+    }
+
     const conv = await response.json();
     newChatModal.style.display = 'none';
-    
+    groupName.value = '';
+    selectedMembers = [];
+
     await loadConversations();
     await selectConversation(conv);
   } catch (error) {
@@ -402,31 +442,45 @@ createGroupBtn.addEventListener('click', async () => {
   }
 });
 
-// Logout
+// ============ LOGOUT ============
+
 logoutButton.addEventListener('click', () => {
   currentUser = null;
   currentConversation = null;
+  allUsers = [];
+  conversations = [];
+  selectedMembers = [];
   authContainer.style.display = 'flex';
   chatContainer.style.display = 'none';
+  emptyState.style.display = 'flex';
+  chatView.style.display = 'none';
   messageInput.value = '';
   messagesArea.innerHTML = '';
+  conversationsList.innerHTML = '';
 });
 
-// Show/Hide Chat
 function showChat() {
   authContainer.style.display = 'none';
   chatContainer.style.display = 'flex';
 }
 
-// Socket Events
+// ============ SOCKET EVENTS ============
+
 socket.on('receive_message', (msg) => {
-  if (msg.conversationId === currentConversation?._id) {
+  // Only display in the currently open conversation
+  if (currentConversation && msg.conversationId === currentConversation._id) {
     displayMessage(msg);
   }
 });
 
-socket.on('conversation_updated', (data) => {
-  loadConversations();
+// Sidebar refresh when a message arrives in any conversation
+socket.on('conversation_updated', async () => {
+  await loadConversations();
+});
+
+// When someone starts a conversation with us — refresh sidebar
+socket.on('new_conversation', async (conv) => {
+  await loadConversations();
 });
 
 socket.on('user_typing', (data) => {
@@ -438,15 +492,26 @@ socket.on('user_stop_typing', () => {
   typingIndicator.style.display = 'none';
 });
 
-socket.on('connect', () => {
+// On reconnect (e.g. tab regains focus / network comes back),
+// reload conversations so offline messages appear in sidebar
+socket.on('connect', async () => {
   console.log('Connected to server');
+  if (currentUser) {
+    socket.emit('user_login', { username: currentUser.username, userId: currentUser.userId });
+    await loadConversations();
+    // If a conversation was open, reload its messages to catch anything received while offline
+    if (currentConversation) {
+      await loadMessages(currentConversation._id);
+    }
+  }
 });
 
-// Typing indicator
+// ============ TYPING INDICATOR ============
+
 let typingTimeout;
 messageInput.addEventListener('input', () => {
   if (!currentConversation) return;
-  
+
   socket.emit('typing', {
     conversationId: currentConversation._id,
     username: currentUser.username
@@ -461,19 +526,15 @@ messageInput.addEventListener('input', () => {
   }, 1000);
 });
 
-// Helper function to escape HTML
+// ============ HELPERS ============
+
 function escapeHtml(text) {
   const div = document.createElement('div');
-  div.textContent = text;
+  div.textContent = text || '';
   return div.innerHTML;
 }
 
-// Close modals on outside click
 window.addEventListener('click', (e) => {
-  if (e.target === summaryModal) {
-    summaryModal.style.display = 'none';
-  }
-  if (e.target === newChatModal) {
-    newChatModal.style.display = 'none';
-  }
+  if (e.target === summaryModal) summaryModal.style.display = 'none';
+  if (e.target === newChatModal) newChatModal.style.display = 'none';
 });
