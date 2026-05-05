@@ -288,4 +288,6 @@ ISC
 
 ## Author
 
-Your Name
+Advait Satpute
+Aniruddh Saraf
+Sahil Sarupria
